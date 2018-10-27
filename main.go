@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"runtime"
 )
 
 func isUserLoggedIn(c *baa.Context) bool {
@@ -32,7 +33,7 @@ func letUserLogIn(c *baa.Context, username string) {
 	sessionObj.Set("username", username)
 
 	//尝试创建用户主目录
-	_ = php2go.Mkdir(getUserMainDirectory(c), 0777)
+	php2go.Mkdir(getUserMainDirectory(c), 0777)
 
 	execCommand(c, getGitInitCmd(getUserMainDirectory(c)))
 }
@@ -43,6 +44,7 @@ func letUserLogOut(c *baa.Context) {
 	sessionObj.Delete("username")
 }
 
+//with suffix / or \
 func getCurrentPath() (string, error) {
 	file, err := exec.LookPath(os.Args[0])
 	if err != nil {
@@ -52,11 +54,11 @@ func getCurrentPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	i := strings.LastIndex(path, "/")
+	i := strings.LastIndex(path, string(os.PathSeparator))
 	if i < 0 {
 		return "", errors.New(`can't find "/" or "\"`)
 	}
-	return php2go.Trim(string(path[0 : i+1])), nil
+	return string(path[0 : i+1]), nil
 }
 
 func isFileExists(path string) (bool, error) {
@@ -78,19 +80,18 @@ func fileGetContent(fullFilePath string) string {
 	return content
 }
 
+//without suffix \ or /
 func getUserMainDirectory(c *baa.Context) string {
 	// get the session handler
 	sessionObj := c.Get("session").(*session.Session)
 	username := sessionObj.Get("username")
 	path, _ := getCurrentPath()
-	sep := "/"
-	return path + "notes" + sep + username.(string)
+	return path + "notes" + string(os.PathSeparator) + username.(string)
 }
 
 func getPassword(username string) interface{} {
 	path, _ := getCurrentPath()
-	sep := "/"
-	fullFilePath := path + "password" + sep + username
+	fullFilePath := path + "password" + string(os.PathSeparator) + username
 	isExists, _ := isFileExists(fullFilePath)
 	if isExists {
 		password := fileGetContent(fullFilePath)
@@ -99,6 +100,7 @@ func getPassword(username string) interface{} {
 	return nil
 }
 
+// dir is with suffix / or \
 func getFilesUnderDir(dir string) []string {
 	files, _ := filepath.Glob(dir + "*")
 	return files
@@ -114,20 +116,20 @@ type JsonError struct {
 }
 
 func getGitInitCmd(dir string) string {
-	dir = php2go.Rtrim(dir, "/")
-	dir = dir + "/"
+	dir = php2go.Rtrim(dir, string(os.PathSeparator))
+	dir = dir + string(os.PathSeparator)
 	return fmt.Sprintf("git init %s", dir)
 }
 
 func getGitAddAllCmd(dir string) string {
-	dirnosuffix := php2go.Rtrim(dir, "/")
-	dir = dirnosuffix + "/"
+	dirnosuffix := php2go.Rtrim(dir, string(os.PathSeparator))
+	dir = dirnosuffix + string(os.PathSeparator)
 	return fmt.Sprintf("git --git-dir=\"%s.git\" --work-tree=\"%s\" add -A", dir, dirnosuffix)
 }
 
 func getGitCommitCmd(dir string, filePath string) string {
-	dirnosuffix := php2go.Rtrim(dir, "/")
-	dir = dirnosuffix + "/"
+	dirnosuffix := php2go.Rtrim(dir, string(os.PathSeparator))
+	dir = dirnosuffix + string(os.PathSeparator)
 	return fmt.Sprintf("git --git-dir=\"%s.git\" --work-tree=\"%s\" commit -m \"update file %s\"", dir, dirnosuffix, filePath)
 }
 
@@ -138,13 +140,18 @@ func getGitCommitCmd(dir string, filePath string) string {
 //}
 
 func execCommand(c *baa.Context, cmd string) {
-	// fmt.Println(cmd)
 	var err error
 	var newCmd string
 	var shellFilePath string
 
-	shellFilePath = getUserMainDirectory(c) + "/git_shell.sh"
+	shellFilePath = getUserMainDirectory(c) + string(os.PathSeparator) + "git_shell.sh"
 	newCmd = "#!/bin/bash\n\n" + cmd
+
+	if runtime.GOOS == "windows" {
+		shellFilePath = getUserMainDirectory(c) + string(os.PathSeparator) + "git_shell.bat"
+		newCmd = cmd
+	}
+
 	php2go.FilePutContents(shellFilePath, newCmd, 0777)
 	err = exec.Command(shellFilePath).Run()
 	
@@ -197,6 +204,10 @@ func main() {
 				dir = php2go.Trim(dir, "/")
 				dir = "/" + dir + "/"
 			}
+			if runtime.GOOS == "windows" {
+				dir = strings.Replace(dir, "/", string(os.PathSeparator), -1)
+			}
+			//fullDir is with suffix / or \
 			fullDir := rootPath + dir
 
 			files := getFilesUnderDir(fullDir)
@@ -209,6 +220,9 @@ func main() {
 				fileInfo, _ = os.Stat(fileFullPath)
 				pos = len(rootPath)
 				fileInfoDataName = php2go.Substr(fileFullPath, uint(pos), -1)
+				if runtime.GOOS == "windows" {
+					fileInfoDataName = strings.Replace(fileInfoDataName, string(os.PathSeparator), "/", -1)
+				}
 				fileInfoDataList[i] = FileInfoData{Path: fileInfoDataName, IsDir: fileInfo.IsDir()}
 			}
 
@@ -236,7 +250,11 @@ func main() {
 			path = strings.Replace(path, "\\", "", -1)
 			path = php2go.Trim(path, "/")
 
-			fullPath := rootPath + "/" + path
+			if runtime.GOOS == "windows" {
+				path = strings.Replace(path, "/", string(os.PathSeparator), -1)
+			}
+
+			fullPath := rootPath + string(os.PathSeparator) + path
 			isExists, _ := isFileExists(fullPath)
 			if !isExists {
 				c.JSON(410, JsonError{Message: "file not exists"})
@@ -270,9 +288,11 @@ func main() {
 			path = strings.Replace(path, "\\", "", -1)
 			path = php2go.Trim(path, "/")
 
-			fmt.Println(path)
+			if runtime.GOOS == "windows" {
+				path = strings.Replace(path, "/", string(os.PathSeparator), -1)
+			}
 
-			fullPath := rootPath + "/" + path
+			fullPath := rootPath + string(os.PathSeparator) + path
 			fileInfo, _ := os.Stat(fullPath)
 			if fileInfo != nil {
 				if fileInfo.IsDir() {
