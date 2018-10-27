@@ -1,0 +1,5 @@
+notes/*
+password/*
+!password/root
+.idea
+.DS_Store

@@ -1,0 +1,112 @@
+<!-- template/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ .username }}</title>
+
+    <script src="/assets/js/vue1.x.js"></script>
+    <script src="/assets/js/jquery-3.1.1.min.js"></script>
+
+</head>
+<body>
+<h2>欢迎{{ .username }}</h2>
+
+<div id="note_app">
+    <span v-on:click="goBackDir()">go back</span>
+    <span v-on:click="showCreateNote()">create</span>
+    <ul>
+        <li v-for="noteItem in noteItems">${ noteItem.path }
+            <span v-if="noteItem.isDir" v-on:click="enterDir(noteItem.path)">[Enter]</span>
+            <span v-if="!noteItem.isDir" v-on:click="showUpdateNote(noteItem.path)">[Update]</span>
+        </li>
+    </ul>
+
+    ${ currentItemPath }
+    <br>
+    <div v-if="isUpdating">
+        <textarea v-model="currentItemContent"></textarea>
+        <br>
+        <button type="button" v-on:click="updateNote()">update</button>
+    </div>
+
+    <div v-if="isCreating">
+        ${ currentDir } / ${ newNoteTitle }
+
+        <br>
+        <input v-if="isCreating" v-model="newNoteTitle">
+        <br>
+        <textarea v-model="newNoteContent"></textarea>
+        <br>
+        <button type="button" v-on:click="createNote()">create</button>
+    </div>
+</div>
+
+<script>
+    Vue.config.delimiters = ['${', '}'];
+    var noteApp = new Vue({
+        el: "#note_app",
+        data: {
+            backDir: [],
+            currentDir: "/",
+            noteItems: [],
+            currentItemContent: "",
+            currentItemPath: "/",
+            newNoteTitle: "",
+            newNoteContent: "",
+            isCreating: false,
+            isUpdating: false,
+        },
+        ready: function () {
+            $.get("/ls", function (response) {
+                this.noteItems = Object.assign([], response);
+            }.bind(this));
+        },
+        methods: {
+            showUpdateNote: function (path) {
+                this.currentItemContent = "";
+                this.currentItemPath = path;
+                this.isUpdating = true;
+                $.get("/get?path="+path, function (content) {
+                    this.currentItemContent = content;
+                }.bind(this));
+            },
+            updateNote: function () {
+                this.isUpdating = false;
+                $.post("/put?path="+this.currentItemPath, {content: this.currentItemContent});
+            },
+            showCreateNote: function () {
+                this.isCreating = true;
+            },
+            createNote: function () {
+                $.post("/put?path="+this.currentDir + "/" + this.newNoteTitle+".html", {content: this.newNoteContent}, function () {
+                    this.isCreating = false;
+                    this.changeDir(this.currentDir);
+                }.bind(this));
+            },
+            enterDir: function (dir) {
+                this.backDir.push(this.currentDir);
+                this.changeDir(dir);
+            },
+            goBackDir: function () {
+                if (!this.backDir.length) {
+                    return;
+                }
+                var dir = this.backDir.pop();
+                this.changeDir(dir);
+            },
+            changeDir: function (dir) {
+                this.currentDir = dir;
+                this.currentItemPath = dir;
+                $.get("/ls?dir=" + dir, function (response) {
+                    this.noteItems = Object.assign([], response);
+                }.bind(this))
+            },
+
+        }
+    });
+
+</script>
+
+</body>
+</html>
