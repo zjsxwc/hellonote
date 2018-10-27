@@ -2,6 +2,8 @@
 
 不使用数据库，完全使用git作为笔记版本管理
 
+*NOT SUPPORT WINDOWS*
+
 使用方式：
 ```
 ./main
