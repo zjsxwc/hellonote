@@ -53,9 +53,6 @@ func getCurrentPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if runtime.GOOS == "windows" {
-		path = strings.Replace(path, "\\", "/", -1)
-	}
 	i := strings.LastIndex(path, "/")
 	if i < 0 {
 		return "", errors.New(`can't find "/" or "\"`)
@@ -147,20 +144,11 @@ func execCommand(c *baa.Context, cmd string) {
 	var newCmd string
 	var shellFilePath string
 
-	if runtime.GOOS == "windows" {
-		//fixme 没有在windows下调试过，这段代码不保证可以运行
-		shellFilePath = getUserMainDirectory(c) + "/git_shell.bat"
-		newCmd = strings.Replace(cmd, "/", "\\", -1)
-		php2go.FilePutContents(shellFilePath, newCmd, 0777)
-		shellFilePath = strings.Replace(shellFilePath, "/", "\\", -1)
-		err = exec.Command(shellFilePath).Run()
-	} else {
-		shellFilePath = getUserMainDirectory(c) + "/git_shell.sh"
-		newCmd = "#!/bin/bash\n\n" + cmd
-		php2go.FilePutContents(shellFilePath, newCmd, 0777)
-		err = exec.Command(shellFilePath).Run()
-	}
-
+	shellFilePath = getUserMainDirectory(c) + "/git_shell.sh"
+	newCmd = "#!/bin/bash\n\n" + cmd
+	php2go.FilePutContents(shellFilePath, newCmd, 0777)
+	err = exec.Command(shellFilePath).Run()
+	
 	if err != nil {
 		fmt.Println("error occurred")
 		fmt.Printf("%s", err)
