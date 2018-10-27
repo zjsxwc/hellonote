@@ -335,7 +335,7 @@ func main() {
 		username := c.Query("username")
 		password := c.Query("password")
 
-		if password == getPassword(username) {
+		if (len(password) > 0)&&(password == getPassword(username)) {
 			letUserLogIn(c, username)
 			c.Redirect(302, "/")
 			return
