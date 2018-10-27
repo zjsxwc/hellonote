@@ -31,7 +31,7 @@
     </div>
 
     <div v-if="isCreating">
-        ${ currentDir } / ${ newNoteTitle }
+        ${ currentDir }  ${ newNoteTitle }
 
         <br>
         <input v-if="isCreating" v-model="newNoteTitle">
@@ -86,7 +86,7 @@
             },
             enterDir: function (dir) {
                 this.backDir.push(this.currentDir);
-                this.changeDir(dir);
+                this.changeDir(dir + "/");
             },
             goBackDir: function () {
                 if (!this.backDir.length) {
