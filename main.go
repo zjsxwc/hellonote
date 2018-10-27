@@ -14,9 +14,7 @@ import (
 )
 
 func isUserLoggedIn(c *baa.Context) bool {
-	// get the session handler
-	sessionObj := c.Get("session").(*session.Session)
-	username := sessionObj.Get("username")
+	username := getUsername(c)
 	if username == nil {
 		return false
 	}
